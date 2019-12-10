@@ -22,7 +22,7 @@ struct conta {
     }
     
 
-    bool const operator<( const conta& rhs ) { return id < rhs.id; }
+    bool operator<( const conta& rhs ) { return id < rhs.id; }
 };
 
 void deposit( conta& acc, int valor ) { acc.balance += valor; }
@@ -85,13 +85,10 @@ int main()
     int v1 = 49;
     int v2 = 20;
     
-    thread threads[2];
-    threads[0] = thread(custom_transfer, v1, &vec[0], &vec[1], &vec[2]);
-    threads[1] = thread(custom_transfer, v2, &vec[2], &vec[0], &vec[1]);
+    custom_transfer(v1, vec[0], vec[1], vec[2]);
+    custom_transfer(v2, vec[2], vec[0], vec[1]);
     
     print_accs(vec);
-
-    for(auto& th : threads) th.join();
 
     return 0;
 }
