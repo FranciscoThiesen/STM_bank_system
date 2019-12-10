@@ -6,13 +6,6 @@ import System.IO
 
 type Account = TVar Integer
 
-
--- Para compilar: ghc -dynamic bank.hs -package stm -o bank
-
--- To-do
-    -- Adicionar concorrencia
-
-
 credit :: Integer -> Account -> STM ()
 credit amount account = do 
     current <- readTVar account;
@@ -32,8 +25,8 @@ transfer amount from to = do
     debit amount from
     credit amount to
 
-cascade_transfer :: Integer -> Account -> Account -> Account -> STM ()
-cascade_transfer amount from1 from2 to = do
+custom_transfer :: Integer -> Account -> Account -> Account -> STM ()
+custom_transfer amount from1 from2 to = do
     orElse (transfer amount from1 to) $ (transfer amount from2 to)
 
 showAcc name acc = do
@@ -41,15 +34,17 @@ showAcc name acc = do
     hPutStr stdout (name ++ ": $")
     hPutStr stdout (show bal ++ "\n")
 
+showAccs x y z = do
+    showAcc "Conta1" x 
+    showAcc "Conta2" y
+    showAcc "Conta3" z
+    hPutStr stdout "\n"
+
 main = do
     acc1 <- atomically (newTVar 40)
     acc2 <- atomically (newTVar 50)
     acc3 <- atomically (newTVar 0)
-    showAcc "Conta1" acc1
-    showAcc "Conta2" acc2
-    showAcc "Conta3" acc3
-    atomically $ cascade_transfer 49 acc1 acc2 acc3
-    showAcc "Conta1" acc1
-    showAcc "Conta2" acc2
-    showAcc "Conta3" acc3
-
+    showAccs acc1 acc2 acc3
+    forkIO $ (atomically $ custom_transfer 49 acc1 acc2 acc3)
+    atomically $ custom_transfer 20 acc3 acc1 acc2
+    showAccs acc1 acc2 acc3
