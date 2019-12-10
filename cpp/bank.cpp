@@ -20,7 +20,6 @@ struct conta {
     {
         cout << "conta id = " << id << " balance = " << balance << endl;
     }
-    
 
     bool operator<( const conta& rhs ) { return id < rhs.id; }
 };
@@ -30,6 +29,7 @@ void withdraw( conta& acc, int valor ) { acc.balance -= valor; }
 
 bool transfer(int value, conta& from, conta& to) {
     // temos que estipular uma ordem das locks, para nao ter deadlock com a transacao oposta
+    cout << "called transfer" << endl;
     if( from < to )
     {
         from.mt.lock();
@@ -84,12 +84,14 @@ int main()
     
     int v1 = 49;
     int v2 = 20;
+   
+    thread fst( [&] { custom_transfer( v1, vec[0], vec[1], vec[2] );} );
+    thread snd( [&] { custom_transfer( v2, vec[2], vec[0], vec[1] );} );
     
-    custom_transfer(v1, vec[0], vec[1], vec[2]);
-    custom_transfer(v2, vec[2], vec[0], vec[1]);
+    fst.join(); snd.join();
     
     print_accs(vec);
-
+    
     return 0;
 }
 
