@@ -14,9 +14,7 @@ credit amount account = do
 debit :: Integer -> Account -> STM ()
 debit amount account = do
     current <- readTVar account
-    check $ amount <= current
     writeTVar account (current - amount)
-
 
 transfer :: Integer -> Account -> Account -> STM ()
 transfer amount from to = do
