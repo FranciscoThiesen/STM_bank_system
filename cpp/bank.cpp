@@ -1,8 +1,13 @@
-#include <bits/stdc++.h>
+#include <iostream>
+#include <mutex>
+#include <thread>
+#include <vector>
+#include <numeric>
 
 using namespace std;
 
 int current_id = 0;
+mutex transfer_m;
 
 struct conta {
     int balance;
@@ -28,6 +33,9 @@ void deposit( conta& acc, int valor ) { acc.balance += valor; }
 void withdraw( conta& acc, int valor ) { acc.balance -= valor; }
 
 bool transfer(int value, conta& from, conta& to) {
+    
+    transfer_m.lock();
+
     // temos que estipular uma ordem das locks, para nao ter deadlock com a transacao oposta
     cout << "called transfer" << endl;
     if( from < to )
@@ -49,11 +57,14 @@ bool transfer(int value, conta& from, conta& to) {
         deposit(to, value);
         to.mt.unlock();
         from.mt.unlock();
+        transfer_m.unlock();
         return true;
     }
     
     to.mt.unlock();
     from.mt.unlock();
+    transfer_m.unlock();
+
     return false;
 }
 
@@ -70,12 +81,29 @@ void custom_transfer(int value, conta& from1, conta& from2, conta& to)
     }
 }
 
+// Para que essa funcao nao tenha uma visao inconsistente de mundo em nenhum momento,
+// Precisamos pegar dar lock no mutex, a fim de garantir que nao tem nenhuma transferencia acontecendo 
+bool check_global_balance(const vector<conta>& contas, int total_expected_balance ) 
+{
+    transfer_m.lock();
+    int total_bal = accumulate(contas.begin(), contas.end(), 0, 
+    [&](const int& i, const conta& c) 
+    { 
+        return i + c.balance; 
+    });
+    transfer_m.unlock();
+    return (total_bal == total_expected_balance);
+}
+
+
 int main()
 {
     auto print_accs = [&] ( vector<conta>& v ) {
         for( auto& acc : v ) acc.print_acc();
     };
-
+    
+    transfer_m.unlock();
+    
     vector< conta > vec(3);
     deposit(vec[0], 40);
     deposit(vec[1], 50);
@@ -87,13 +115,10 @@ int main()
    
     thread fst( [&] { custom_transfer( v1, vec[0], vec[1], vec[2] );} );
     thread snd( [&] { custom_transfer( v2, vec[2], vec[0], vec[1] );} );
-    
+     
     fst.join(); snd.join();
     
     print_accs(vec);
-    
+
     return 0;
 }
-
-
-
