@@ -4,6 +4,7 @@ using namespace std;
 
 int current_id = 0;
 atomic<int> ongoing_transfers(0);
+atomic<int> checking_balances(0);
 mutex balance_m;
 
 
@@ -12,9 +13,9 @@ struct conta {
     int id;
     mutex mt;
 
-    conta( int initial_balance = 0 ) 
+    conta(int inital_balance = 0) 
     {
-        balance = initial_balance;
+        balance = 0;
         id = current_id++;
         mt.unlock();
     }
@@ -31,10 +32,11 @@ void deposit( conta& acc, int valor ) { acc.balance += valor; }
 void withdraw( conta& acc, int valor ) { acc.balance -= valor; }
 
 bool transfer(int value, conta& from, conta& to) {
-    balance_m.lock(); 
+    // enquanto tiver alguma thread checando os saldos, nao podemos realizar transferencias 
+    while( checking_balances > 0 ) this_thread::sleep_for(chrono::milliseconds(5)); 
+    
     ongoing_transfers++;
-    // temos que estipular uma ordem das locks, para nao ter deadlock com a transacao oposta
-    cout << "called transfer" << endl;
+
     if( from < to )
     {
         from.mt.lock();
@@ -49,8 +51,7 @@ bool transfer(int value, conta& from, conta& to) {
     if( value < from.balance ) 
     {
         withdraw(from, value);
-        // A thread ainda pode ser interrompida entre essas duas chamadas
-        // gerando uma visao de mundo inconsistente para alguma outra thread...
+        
         deposit(to, value);
         to.mt.unlock();
         from.mt.unlock();
@@ -84,16 +85,16 @@ void custom_transfer(int value, conta& from1, conta& from2, conta& to)
 bool check_global_balance(const vector<conta>& contas, int total_expected_balance ) 
 {
    
-    balance_m.lock(); 
     while( ongoing_transfers > 0 ) this_thread::sleep_for(chrono::milliseconds(5)); 
-    
+    checking_balances++;
+
     int total_bal = accumulate(contas.begin(), contas.end(), 0, 
     [&](const int& i, const conta& c) 
     { 
         return i + c.balance; 
     });
     
-    balance_m.unlock();
+    checking_balances--;
     return (total_bal == total_expected_balance);
 }
 
