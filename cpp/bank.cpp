@@ -1,13 +1,11 @@
-#include <iostream>
-#include <mutex>
-#include <thread>
-#include <vector>
-#include <numeric>
+#include <bits/stdc++.h>
 
 using namespace std;
 
 int current_id = 0;
-mutex transfer_m;
+atomic<int> ongoing_transfers(0);
+mutex balance_m;
+
 
 struct conta {
     int balance;
@@ -33,9 +31,8 @@ void deposit( conta& acc, int valor ) { acc.balance += valor; }
 void withdraw( conta& acc, int valor ) { acc.balance -= valor; }
 
 bool transfer(int value, conta& from, conta& to) {
-    
-    transfer_m.lock();
-
+    balance_m.lock(); 
+    ongoing_transfers++;
     // temos que estipular uma ordem das locks, para nao ter deadlock com a transacao oposta
     cout << "called transfer" << endl;
     if( from < to )
@@ -57,14 +54,15 @@ bool transfer(int value, conta& from, conta& to) {
         deposit(to, value);
         to.mt.unlock();
         from.mt.unlock();
-        transfer_m.unlock();
+        ongoing_transfers--; 
+        balance_m.unlock(); 
         return true;
     }
     
     to.mt.unlock();
     from.mt.unlock();
-    transfer_m.unlock();
-
+    ongoing_transfers--; 
+    balance_m.unlock(); 
     return false;
 }
 
@@ -85,13 +83,17 @@ void custom_transfer(int value, conta& from1, conta& from2, conta& to)
 // Precisamos pegar dar lock no mutex, a fim de garantir que nao tem nenhuma transferencia acontecendo 
 bool check_global_balance(const vector<conta>& contas, int total_expected_balance ) 
 {
-    transfer_m.lock();
+   
+    balance_m.lock(); 
+    while( ongoing_transfers > 0 ) this_thread::sleep_for(chrono::milliseconds(5)); 
+    
     int total_bal = accumulate(contas.begin(), contas.end(), 0, 
     [&](const int& i, const conta& c) 
     { 
         return i + c.balance; 
     });
-    transfer_m.unlock();
+    
+    balance_m.unlock();
     return (total_bal == total_expected_balance);
 }
 
@@ -102,7 +104,7 @@ int main()
         for( auto& acc : v ) acc.print_acc();
     };
     
-    transfer_m.unlock();
+    balance_m.unlock();
     
     vector< conta > vec(3);
     deposit(vec[0], 40);
